@@ -39,14 +39,16 @@ class RandomPolicy(Policy):
 class EpsilonGreedyPolicy(Policy):
     """Policy class that implements linear decay from exploration to exploitation.
     """
-    def __init__(self, start_epsilon:float=1.00, decay:float = 0.001) -> None:
+    def __init__(self, start_epsilon:float=1.00, end_epsilon:float=0.00, decay:float = 0.001) -> None:
         """ The constructor for the EpsilonGreedyPolicy class.
 
         ### Params
         1. start_epsilon (float) - starting probability of exploration
-        2. decay (float) - linear unit to decrease epsilon by during every selection
+        2. end_epsilon (float) - minimum probability of exploration
+        3. decay (float) - linear unit to decrease epsilon by during every selection
         """
         self.epsilon = start_epsilon
+        self.min_ep  = end_epsilon
         self.decay   = decay
 
         ### reuse old code (good coding habits) (Daisy Fan would be proud)
@@ -57,10 +59,16 @@ class EpsilonGreedyPolicy(Policy):
         choice = np.random.rand(1)[0]
         if choice < self.epsilon:
             # explore
-            return self.random(action_weights)
+            action = self.random(action_weights)
         else:
             # exploit
-            return self.greedy(action_weights)
+            action = self.greedy(action_weights)
+        
+        # decay
+        self.epsilon = max(self.epsilon - self.decay, self.min_ep)
+        
+        # return
+        return action
 
 
 class BoltzmannQPolicy(Policy):
@@ -73,14 +81,90 @@ class BoltzmannQPolicy(Policy):
     """
 
     def __init__(self, temperature:float=1.0):
-            """ The constructor for the EpsilonGreedyPolicy class.
+        """ The constructor for the EpsilonGreedyPolicy class.
 
         ### Params
         1. start_epsilon (float) - starting probability of exploration
         2. decay (float) - linear unit to decrease epsilon by during every selection
+
+        ### Note
+        1. Lower temperature exacerbates differences between weights
+        (new_weights = old_weights / temperature)
+        2. keep temperature between (0, inf?) <-- inf not good idea though
         """
         self.temperature = temperature
 
+    def select(self, action_weights: np.ndarray) -> int:
+        # scale by temperature
+        # vectorized code!
+        new_weights = action_weights / self.temperature
+
+        # softmax
+        new_weights = self.__softmax(new_weights)
+
+        # select
+        return np.random.choice(
+            a=new_weights.size,
+            size=10,
+            replace=True,
+            p=new_weights
+        )
+
+    def __softmax(self, arr: np.ndarray) -> np.ndarray:
+        """Implementation of a softmax.
+
+        ### Params
+        1. arr (np.ndarray) - array of weights
+
+        ### Returns
+        1. (np.ndarray) - normalized array bwtn (0,1)
+        """
+
+        return np.exp(arr) / np.sum(np.exp(arr))
+
 if __name__ == '__main__':
-    x = GreedyPolicy()
-    x.select()
+    from lib.moduletest import BetterUnittest
+   
+    class TestPolicies(BetterUnittest):
+        def test_greedy(self):
+            policy = GreedyPolicy()
+            
+            self.assertEqual(
+                first=policy.select(np.array( [0.1, 0.1, 0.11] )),
+                second=2
+            )
+
+            self.assertEqual(
+                first=policy.select(np.array( [-0.1, 0.1, 0.1] )),
+                second=1
+            )
+
+            self.assertEqual(
+                first=policy.select(np.array( [-0.2, -0.1, -0.2] )),
+                second=1
+            )
+
+        def test_random(self):
+            # there is no good way to test this
+            # as long as it doesn't crash, I will assume it works        
+            MAX_TEST_SIZE = 1_000
+
+            policy = RandomPolicy()
+
+            arr1 = np.array([1])
+            arr2 = np.array([1, 1])
+            arr3 = np.array([1, 1, 1])
+            
+            for _ in range(MAX_TEST_SIZE):
+                arr1[policy.select(arr1)] 
+
+            for _ in range(MAX_TEST_SIZE):
+                arr2[policy.select(arr2)]  
+
+            for _ in range(MAX_TEST_SIZE):
+                arr2[policy.select(arr2)]  
+
+  
+
+    TestPolicies.betterRun("POLICY.PY @ MAIN ..running unittests")
+    

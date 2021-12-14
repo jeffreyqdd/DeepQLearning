@@ -98,7 +98,6 @@ class Memory:
 
 
 if __name__ == '__main__':
-    from unittest import main as unittest_main
     from lib.moduletest import BetterUnittest
     import gym
 

@@ -6,11 +6,7 @@ My custom-developed library for deep q learning. Designed based on OpenAI's gym 
 I've dabbled in deep q learning in the past. However, this is my genuine attempt at learning and "mastering" deep Q learning.
 
 ## Goals
-I want to apply what I learn here to more complex AI's e.g. 
-
-
-I've done multiple attempts in the past. However, this is my genuine attempt at
-learning and "mastering deep Q learning"
+I want to apply what I learn here to more complex AI's e.g. tic tac toe, connect4, chess!
 
 # Library Development (lib)
 wip
