@@ -67,7 +67,7 @@ class Memory:
         ### Params
         1. sample_size (int) - number of samples to take from the memory
 
-        ### Returns
+        ### Returns (note that the dtypes listed below are wrapped in an np.ndarray (batch sample). )
         1. (np.ndarray) - array of length sample_size where item i is (state  s_t)
         2. (np.int32)   - array of length sample_size where item i is (action a_t)
         3. (np.float32) - array of length sample_size where item i is (reward r_t+1)
