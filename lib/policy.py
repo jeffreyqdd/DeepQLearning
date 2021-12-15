@@ -105,10 +105,10 @@ class BoltzmannQPolicy(Policy):
         # select
         return np.random.choice(
             a=new_weights.size,
-            size=10,
+            size=1,
             replace=True,
             p=new_weights
-        )
+        )[0]
 
     def __softmax(self, arr: np.ndarray) -> np.ndarray:
         """Implementation of a softmax.

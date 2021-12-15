@@ -1,4 +1,4 @@
 env/
-tensorflow/
+build/
 __pycache__/
 *.pyc
