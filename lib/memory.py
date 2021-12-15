@@ -96,8 +96,7 @@ class Memory:
 
             return states, actions, rewards, new_states, terminals
 
-
-if __name__ == '__main__':
+def main():
     from lib.moduletest import BetterUnittest
     import gym
 
@@ -129,3 +128,6 @@ if __name__ == '__main__':
             env.close()
 
     TestMemory.betterRun("MEMORY.PY @ MAIN ..running unittests")
+
+if __name__ == '__main__':
+    main()
