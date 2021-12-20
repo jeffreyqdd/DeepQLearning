@@ -59,10 +59,10 @@ class EpsilonGreedyPolicy(Policy):
         choice = np.random.rand(1)[0]
         if choice < self.epsilon:
             # explore
-            action = self.random(action_weights)
+            action = self.random.select(action_weights)
         else:
             # exploit
-            action = self.greedy(action_weights)
+            action = self.greedy.select(action_weights)
         
         # decay
         self.epsilon = max(self.epsilon - self.decay, self.min_ep)
