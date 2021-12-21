@@ -11,6 +11,10 @@ I want to apply what I learn here to more complex AI's e.g. tic tac toe, connect
 # Library Development (lib)
 wip
 
+note that the current implementation is done in tensorflow
+
+I want future implementations to be doen in pytorch
+
 
 # Setup:
 **Note that I am using Python 3.7.7**

@@ -75,12 +75,11 @@ class Agent:
         1. batch_size (int) - number of samples to take from memory
         """
         
-        if self.memory.size <= batch_size:
+        if self.memory.size + 2 <= batch_size:
             return
 
         # grab batch
-        curr_states, actions, rewards, new_states, terminals, curr_qs = self.memory.sample_transitions(sample_size=batch_size)
-        future_qs = self.predict(new_states, is_batch_predict=True)
+        curr_states, actions, rewards, future_states, terminals, curr_qs, future_qs = self.memory.sample_transitions(sample_size=batch_size)
          
         X = []
         Y = []
@@ -141,8 +140,8 @@ def main():
     ### create agent
     agent = Agent(
         model_factory=factory,
-        memory=Memory(input_dims=env.observation_space.shape, output_dims=(env.action_space.n, ) , max_size=30_000,),
-        policy=EpsilonGreedyPolicy(decay=0.0001),
+        memory=Memory(input_dims=env.observation_space.shape, output_dims=(env.action_space.n, ) , max_len=1_000,),
+        policy=BoltzmannQPolicy(temperature=1),
         learning_rate=0.01,
         discount_rate=0.95,
         update_rate=10
