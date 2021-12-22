@@ -1,6 +1,6 @@
 from lib.memory import Memory
 from lib.policy import BoltzmannQPolicy, EpsilonGreedyPolicy, Policy
-from keras import Model
+from keras import models
 
 import numpy as np
 
@@ -109,10 +109,26 @@ class Agent:
             self.update_cntr = 0
             self.target_model.set_weights(self.model.get_weights())
 
+    def save_model(self, path:str) -> None:
+        """Save trained weights and model architecture to file.
+
+        ### Params
+        1. path (str) - filepath
+        """
+        self.model.save(path)
+
+    def load_model(self, path:str) -> None:
+        """Load trained model from file.
         
+        ### Params
+        1. path (str) - filepath
+        """
+        self.model = models.load_model(path)
     
 
-def main():
+if __name__ == '__main__':
+    ### demo test
+
     import gym
 
     from keras.models import Sequential
@@ -164,15 +180,4 @@ def main():
 
         observation = new_obs
 
-
-
     env.close()
-
-    
-
-if __name__ == '__main__':
-    main()
-        
-
-    
-    
