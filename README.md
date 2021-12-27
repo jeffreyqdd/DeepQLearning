@@ -10,7 +10,8 @@ My custom-developed library for deep q learning. Desgined based on OpenAI's gym 
 - The next step is to improve upon the library. As of December 21, 2021, the original library is "archived" and will be deleted in future versions. 
 
 **(No Date Yet) STEP 2 WIP**
-- I am going to take heavy inspiration from the open-source library [keras-rl](https://github.com/keras-rl/keras-rl). The library is built using state-of-the-art deep reinforcement algorithms.
+- I am going to take some inspiration from the open-source library [keras-rl](https://github.com/keras-rl/keras-rl). The library is built using state-of-the-art deep reinforcement algorithms.
+- Note: the library is difficult to understand.
 
 **(No Date Yet) STEP 3 WIP**
 - I am going to use my library to create board game AIs.
@@ -23,10 +24,12 @@ My custom-developed library for deep q learning. Desgined based on OpenAI's gym 
 - [x] Test scripts
 
 **STEP 2**
-- [ ] Faster Memory Sampling
-- [ ] Sequential Memory
-- [ ] Better Policy (Epsilon, Boltzmann)
+- [x] Faster Memory Sampling
+- [x] Uniform Memory
+- [ ] Prioritized Memory
+- [x] Better Policies (Epsilon, Boltzmann)
 - [ ] Callbacks
+- [ ] DQN Agent
 - [ ] Dueling DQN Agent
 - [ ] Test scripts
 
