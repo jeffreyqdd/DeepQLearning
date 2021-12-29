@@ -1,159 +1,237 @@
-from typing import Tuple
-import unittest
+from collections import namedtuple
+from abc import ABC, abstractclassmethod
 import numpy as np
 import warnings
 
-class Memory:
-    """An implementation of the replay buffer. 
+# Transition state data storage.
+# - state0,     starting state
+# - action,     action perfromed at state0
+# - reward,     reward received at state1
+# - state1,     ending state
+# - terminal1,  state1 might be terminal
 
-    ### The class is designed to be as fast as possible.
-    1. employs fixed-size numpy arrays. 
-    2. rolling-pointer implementation --> oldest entry is replaced
-    3. O(1) insertion/deletion
-    4. O(1) random selection 
+Experience = namedtuple('Experience', 'state0, action, reward, state1, terminal1')
 
-    ### Note: if current state is at index i, then future state is at index i + 1 
-    - True if and only if current state is not the oldest entry
 
-    ### Note: A transition state implementation looks like this: 
-    - e_t is the agent's experience (transition state at time t)
-    - s_t is the state at time t
-    - a_t is the action taken at time t
-    - r_t+1 is the reward received after performing the action
-    - s_t+1 is the new state after performing the action    
-    - I will include a terminal array to keep track of terminal states
-    - I will include a weights array to keep track of action weights at each state s_t
-        and s_t+1
+############################################################
+###### Utility Functions
+############################################################
+def sample_batch_idx(low, high, size):
+    """Uniform random generation of integers in a range [low, high). 
+
+    ### Params:
+        * low (int) - minimum value 
+        * high (int) - maximum value
+        * size (int) - number of integers to pick
+
+    ### Returns:
+        * (np.ndarray) - list of length size ofrandomly generated integers between low and high
+
+    Note: Returns np.ndarray when number of samples exceeds sampling range. May lead to
+    undesired results.
     """
-     
-    def __init__(self,
-        input_dims: Tuple[int, ...],
-        output_dims:Tuple[int, ...],
-        max_len:int = 10_000
-    ) -> None:
-        """ The constructor for the Memory class.
+    # assert precondition that high > low
+    assert high > low
 
-        ### Params
-        1. input_dims (Tuple[int, ...]) - observation space size
-        2. input_dims (Tuple[int, ...]) - action_space size
-        3. max_len (int) - maximum replay buffer size
+    # choose sampling method
+    if high - low >= size:
+        # sample without replacement
+        # https://github.com/numpy/numpy/issues/2764 is fixed
+        idxs    = np.random.choice(high-low, size=size, replace=False)
+        idxs    += low
+    else:
+        # sample with replacement 
+        warnings.warn(f'Sampling {size} times from range [{low}, {high}). Sampling without replacement.')
+        idxs    = np.random.randint(low, high, size=size)
+    return idxs
+
+
+############################################################
+###### Replay Buffer Utility Class
+############################################################
+
+class CircularBuffer:
+    """Array of fixed length and type. Oldest entry beyond the fixed size
+    is replaced by the newest entry.
+        - O(1) append
+        - O(1) access
+
+    Note: indexing out of bounds will not crash since modulo is employed
+    for internal head-pointer wrapping. It may lead to undesired results. 
+    Please check for out of bounds before accessing the data.
+
+    Note: Uses python [] arrays instead of numpy arrays. 
+        - slower init time (negligible)
+        - lower memory footprint
+        - faster append
+        - faster access
+    """
+    def __init__(self, max_size):
+        """Constructor.
+
+        ### Params:
+            * max_size (int) - holds the max_size most recent elements
         """
+        self.max_size   = max_size
+        self.buffer     = [None] * self.max_size
 
-        self.max_size = max_len
-        self.mem_pntr = 0
-        self.size = 0
+        self.head_pntr  = 0
+        self.size       = 0
 
-        self.curr_state     = np.zeros( shape = (self.max_size, *input_dims) , dtype = np.float32)
-        self.actions        = np.zeros( shape = (self.max_size)              , dtype = np.int32  )
-        self.rewards        = np.zeros( shape = (self.max_size)              , dtype = np.float32)
-        self.future_state   = np.zeros( shape = (self.max_size, *input_dims) , dtype = np.float32)
-        self.terminal       = np.zeros( shape = (self.max_size)              , dtype = bool      ) 
-        self.curr_qs        = np.zeros( shape = (self.max_size, *output_dims), dtype = np.float32)
+    def append(self, item):
+        """Append to the end of CircularBuffer.
 
-    
-    def add_transition(self,
-        curr_state:np.ndarray,
-        action:np.int32,
-        reward:np.float32,
-        future_state:np.ndarray,
-        is_done:bool,
-        curr_qs:np.ndarray,
-    ) -> None:
-        """Add new transition state to memory.
-        ### Params
-        1. curr_state (np.ndarray) - current state
-        2. action (np.int32) - action
-        3. reward (np.float32) - reward value of action
-        4. future_state (np.ndarray) - new state, may be gibberish
-        5. is_done (bool) - true if new_state is a terminal state
-        6. curr_qs (np.ndarray) - q weights for the current state
+        ### Params:
+            * item (any) - item to append
         """
-        self.curr_state[self.mem_pntr]      = curr_state
-        self.actions[self.mem_pntr]         = action
-        self.rewards[self.mem_pntr]         = reward
-        self.future_state[self.mem_pntr]    = future_state
-        self.terminal[self.mem_pntr]        = is_done
-        self.curr_qs[self.mem_pntr]         = curr_qs
+        # append
+        self.buffer[self.head_pntr] = item
 
-        # increment and wrap around
-        self.mem_pntr += 1
-        self.mem_pntr %= self.max_size
+        # update head
+        self.head_pntr              += 1
+        self.head_pntr              %= self.max_size
         
-        # because we increment and wrap around, the size caps at max_size
-        self.size = min(self.size + 1, self.max_size)
+        # increase size
+        self.size                   = min(self.size+1, self.max_size)
 
-    def sample_transitions(self, sample_size:int) -> np.ndarray:
-        """Uniformly samples from the entire array.
+    def __getitem__(self, key):
+        """Returns indexed items.
 
-        ### Params
-        1. sample_size (int) - number of samples to take from the memory
+        ### Params:
+            * key (int or np.ndarray of ints) - index or indices
 
-        ### Returns (note that the dtypes listed below are wrapped in an np.ndarray (batch sample). )
-        1. (np.ndarray) - array of length sample_size where item i is (current_state  s_t)
-        2. (np.int32)   - array of length sample_size where item i is (action a_t)
-        3. (np.float32) - array of length sample_size where item i is (reward r_t+1)
-        4. (np.ndarray) - array of length sample_size where item i is (future_state  s_t+1)
-        5. (np.ndarray) - array of length sample_size where item i is (isdone s_t+1)
-        6. (np.ndarray) - array of length sample_size where item i is (current_qs for a_t)
-        7. (np.ndarray) - array of length sample_size where item i is (future_qs for a_t+1)
+        ### Returns:
+            * (any) - singular item or list of items corresponding to the index/indices
         """
-        BUFFER = 2
+        # note that deque[0] is the oldest entry and deque[end] is the newest entry
+        # need to slide indices because CircularBuffers employs a wrapping pointer
 
-        if sample_size > self.size + BUFFER:
-            warnings.warn(
-                f"Sample size of {sample_size} is larger than the current memory size." +
-                f" " +
-                f"Returning empty sample."
-            )
+        # note that head_pntr points to the oldest entry and head_pntr + 1
+        # points to the newest entry
 
-            none = np.array([])
-            
-            return none, none, none, none, none, none
+        # can use vectorized code (yay numpy)
+        key = self.__wrap(key)
+
+        if not hasattr(key, '__len__'):
+            sample_size = 1
+            key = [key] # package in array
         else:
-            batch = np.random.choice(self.size - BUFFER, sample_size, replace=False)
-            batch = (batch + self.mem_pntr + 1) % self.size # shift end to pointer
+            sample_size = len(key)
+        
+        ret = [None] * sample_size
 
-            return (
-                self.curr_state[batch],
-                self.actions[batch],
-                self.rewards[batch],
-                self.future_state[batch],
-                self.terminal[batch],
-                self.curr_qs[batch],
-                self.curr_qs[(batch + 1) % self.size]
-            )
-if __name__ == '__main__':
-    from lib.tools import PrintingUtils
-    import unittest
-    import gym
-    from tqdm import tqdm
-    
-    class TestMemory(unittest.TestCase, PrintingUtils):
-        def test_stability(self):
-            """This test method checks the stability of my memory class. It should catch all potential crashes."""
-            self.assertTrue(True)
-            ### create env
-            env = gym.make('CartPole-v1')
-            observation = env.reset()
+        for idx in range(sample_size):
+            ret[idx] = self.buffer[key[idx]]
+        if len(ret) == 1:
+            return ret[0]
+        else:
+            return ret
 
-            OBS_SHAPE = env.observation_space.shape
-            ACTION_SHAPE = (env.action_space.n, )
-            ### create memory
-            replay_memory = Memory(input_dims=OBS_SHAPE, output_dims=ACTION_SHAPE,max_len=1_000)
-            for _ in tqdm(range(100_000)):
-                action = env.action_space.sample()
-                new_observation, reward, done, info = env.step(action)
-                
-                if done:
-                    new_observation = env.reset()
+    def to_list(self):
+        """Returns list format of internal buffer"""
+        arr = [None] * self.size #init list
 
-                replay_memory.add_transition(observation, action, reward, new_observation, done, np.array([0.1, 0.23]))
-                observation = new_observation
+        for i in range(self.size):
+            key = self.__wrap(i)
+            arr[i] = self.buffer[key]
+        return arr
 
-                if replay_memory.size >= 90:
-                    x = replay_memory.sample_transitions(sample_size=64)
+    def __wrap(self, idx):
+        """Shifts the index to the true location in the buffer"""
+        
+        if self.size == 0:
+            raise ValueError("Cannot index empty buffer")
 
-            env.close()
+        # can use vectorized code
+        return (idx + self.head_pntr) % self.size
 
-    TestMemory.pretty_print("MEMORY.PY @ MAIN ..running unittests")
-    unittest.main()
+    def __len__(self):
+        """Returns length of the CircularBuffer.
+        """
+        return self.size
+
+    def __str__(self):
+        """ToString"""
+        return str(self.to_list)
+
+    def __repr__(self):
+        """Returns string of self"""
+        return self.__str__()
+
+############################################################
+###### Parent Memory Class
+############################################################
+class Memory(ABC):
+    """Abstract replay memory class.
+    """
+    @abstractclassmethod
+    def sample(self, batch_size):
+        """Samples replay memory.
+
+        ### Params:
+            * batch_size (int) - sample size
+
+        ### Returns:
+            * (list) - transition states Experience(state, action, reward, new_state)
+        """
+        raise NotImplementedError()
+
+    @abstractclassmethod
+    def append(self, state, action, reward, new_state, terminal):
+        """Add to replay memory.
+
+        ### Params:
+            * state (np.ndarray) - current state
+            * action (int) - action taken at current state
+            * reward (float) - reward received after taking action
+            * new_state (np.ndarray) - state after taking action
+            * terminal (bool) - is state terminal
+        """
+        raise NotImplementedError()
+
+    def get_config(self):
+        """Get class configuration.
+
+        ### Returns:
+            * (dict) - class configuration
+        """
+        return {}
+
+############################################################
+###### Uniform Replay Memory
+############################################################
+class UniformMemory(Memory):
+    """Uniformly samples from replay memory.
+    """
+    def __init__(self, max_size):
+        self.max_size = max_size
+        self.memory   = CircularBuffer(max_size=self.max_size)
+
+    def sample(self, batch_size):
+        idxs = sample_batch_idx(0, len(self.memory), size=batch_size)
+        return self.memory[idxs]
+
+    def append(self, state, action, reward, new_state, terminal):
+        self.memory.append(Experience(
+            state0=state,
+            action=action,
+            reward=reward,
+            state1=new_state,
+            terminal1=terminal,
+        ))
+
+    def get_config(self):
+        ret = super().get_config()
+        ret['max_size'] = self.max_size
+        return ret
+
+############################################################
+###### Prioritized Replay Memory (TODO)
+############################################################
+
+# https://towardsdatascience.com/how-to-implement-prioritized-experience-replay-for-a-deep-q-network-a710beecd77b
+# https://arxiv.org/abs/1511.05952
+class PrioritizedMemory(Memory):
+    """Implement me"""
+    Priority = namedtuple("Priority", "priority, probability, weight, index")
+    pass  
