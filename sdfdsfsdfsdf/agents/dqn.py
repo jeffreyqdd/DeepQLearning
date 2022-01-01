@@ -48,22 +48,8 @@ class DQNAgent(BaseAgent):
             'memory': self.memory.get_config(), 
         }
 
-# # An implementation of the DQN agent as described in Mnih (2013) and Mnih (2015).
-# # http://arxiv.org/pdf/1312.5602.pdf
-# # http://arxiv.org/abs/1509.06461
-# class DQNAgent(AbstractDQNAgent):
-#     """
-#     # Arguments
-#         model__: A Keras model.
-#         policy__: A Keras-rl policy that are defined in [policy](https://github.com/keras-rl/keras-rl/blob/master/rl/policy.py).
-#         test_policy__: A Keras-rl policy.
-#         enable_double_dqn__: A boolean which enable target network as a second network proposed by van Hasselt et al. to decrease overfitting.
-#         enable_dueling_dqn__: A boolean which enable dueling architecture proposed by Mnih et al.
-#         dueling_type__: If `enable_dueling_dqn` is set to `True`, a type of dueling architecture must be chosen which calculate Q(s,a) from V(s) and A(s,a) differently. Note that `avg` is recommanded in the [paper](https://arxiv.org/abs/1511.06581).
-#             `avg`: Q(s,a;theta) = V(s;theta) + (A(s,a;theta)-Avg_a(A(s,a;theta)))
-#             `max`: Q(s,a;theta) = V(s;theta) + (A(s,a;theta)-max_a(A(s,a;theta)))
-#             `naive`: Q(s,a;theta) = V(s;theta) + A(s,a;theta)
-#     """
+
+
 #     def __init__(self, model, policy=None, test_policy=None, enable_double_dqn=False, enable_dueling_network=False,
 #                  dueling_type='avg', *args, **kwargs):
 #         super().__init__(*args, **kwargs)

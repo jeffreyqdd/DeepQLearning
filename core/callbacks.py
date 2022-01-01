@@ -1,6 +1,7 @@
 ## pulled from https://github.com/keras-rl/keras-rl/blob/master/rl/callbacks.py
-from keras.callbacks import Callback
-from numpy import np
+from keras.callbacks import Callback, CallbackList
+from keras.layers.recurrent_v2 import has_fully_masked_sequence
+import numpy as np
 import warnings
 import timeit
 
@@ -43,7 +44,7 @@ class BaseCallback(Callback):
         """Called at end of each action"""
         pass
 
-class CallbackListHanlder:
+class CallbackListHanlder(CallbackList):
     """Provides simple 'vectorized' method calls on a list of keras.callbacks.Callback objects
 
     Note: Each Callback object also inherits properties from keras.callbacks.Callback.
@@ -55,24 +56,24 @@ class CallbackListHanlder:
 
     def set_env(self, env):
         for callback in self.callbacks:
-            if callable(getattr(callable, 'set_env', default = None)):
+            if callable(getattr(callable, 'set_env', None)):
                 callback.set_env(env)
     
     def set_model(self, model):
         for callback in self.callbacks:
-            if callable(getattr(callable, 'set_model', default = None)):
+            if callable(getattr(callable, 'set_model', None)):
                 callback.set_model(model)
 
     def on_episode_begin(self, episode, logs={}):
         for callback in self.callbacks:
-            if callable(getattr(callable, 'on_episode_begin', default = None)):
+            if callable(getattr(callable, 'on_episode_begin', None)):
                 callback.on_episode_begin(episode, logs)
             else: # default to built-in-keras terminology
                 callback.on_epoch_begin(episode, logs=logs)
 
     def on_episode_end(self, episode, logs={}):
         for callback in self.callbacks:
-            if callable(getattr(callable, 'on_episode_end', default = None)):
+            if callable(getattr(callable, 'on_episode_end', None)):
                 callback.on_episode_end(episode, logs)
             else: # default to built-in-keras terminology
                 callback.on_epoch_end(episode, logs=logs)
@@ -86,20 +87,20 @@ class CallbackListHanlder:
 
     def on_step_end(self, step, logs={}):
         for callback in self.callbacks:
-            if callable(getattr(callable, 'on_step_end', default = None)):
+            if callable(getattr(callable, 'on_step_end', None)):
                 callback.on_step_end(step, logs)
             else: # default to built-in-keras terminology
                 callback.on_batch_end(step, logs)
 
     def on_action_begin(self, action, logs={}):
         for callback in self.callbacks:
-            if callable(getattr(callable, 'on_action_begin', default = None)):
+            if callable(getattr(callable, 'on_action_begin', None)):
                 callback.on_action_begin()
 
 
     def on_action_end(self, action, logs={}):
         for callback in self.callbacks:
-            if callable(getattr(callable, 'on_action_end', default = None)):
+            if callable(getattr(callable, 'on_action_end', None)):
                 callback.on_action_end(action, logs)
 
 class MetricsCallback(BaseCallback):

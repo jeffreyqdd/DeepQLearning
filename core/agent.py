@@ -1,10 +1,10 @@
 ## pulled from https://github.com/keras-rl/keras-rl/blob/master/rl/core.py
 
 from tensorflow.python.util.tf_decorator import rewrap
-from lib.callbacks import CallbackListHanlder
+from core.callbacks import CallbackListHanlder
 from abc import ABC, abstractclassmethod, abstractproperty
 from keras.callbacks import History
-from processor import LazyProcessor
+from core.processor import LazyProcessor
 from copy import deepcopy
 import numpy as np
 
