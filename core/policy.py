@@ -121,5 +121,9 @@ class BoltzmannQPolicy(Policy):
         ### Returns
         1. (np.ndarray) - normalized array bwtn (0,1)
         """
+        z = arr - max(arr)
+        numerator = np.exp(z)
+        denominator = np.sum(numerator)
+        softmax = numerator/denominator
 
-        return np.exp(arr) / np.sum(np.exp(arr))
+        return softmax

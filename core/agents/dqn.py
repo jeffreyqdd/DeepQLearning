@@ -1,15 +1,19 @@
+from keras.models import clone_model
 from core.memory import Memory
 from core.policy import BoltzmannQPolicy, EpsilonGreedyQPolicy
 from core.agent import BaseAgent
 
-from keras import models
+from keras import Model
+import keras.backend as K
+from keras.layers import Lambda
+
 
 import numpy as np
 
 class DqnAgent(BaseAgent):
     """Implementation of a deep q-learning agent.
     """
-    def __init__(self, model_factory, memory, policy, discount_rate, nb_warmup_steps, target_update_rate, train_every):
+    def __init__(self, model, memory, policy, discount_rate, nb_warmup_steps, target_update_rate, train_every, batch_size, *args, **kwargs):
 
         """Constructor of the Agent class
         ### Params
@@ -20,11 +24,12 @@ class DqnAgent(BaseAgent):
         5. discount_rate (float) - discount rate of the deep q agent
         6. update_rate (int) - update frequency of target model from learn calls
         """
+        super().__init__(*args, **kwargs)
+
         self.memory = memory     
         self.policy = policy
-        self.model  = model_factory()
-        self.target_model = model_factory()
-        self.target_model.set_weights(self.model.get_weights())
+        self.model:Model  = model
+        self.target_model:Model = None
 
         self.gamma = discount_rate
 
@@ -34,59 +39,87 @@ class DqnAgent(BaseAgent):
         self.update_cntr = 0
 
         self.train_every = train_every
+        self.batch_size = batch_size
 
     def forward(self, observation):
-        action = self.target_model.predict(np.expand_dims(observation, axis=0))[0]
+        action = self.predict_on_observation(observation)
         return self.policy.select(action_weights=action)
     
 
     def backward(self, state, action, reward, new_state, terminal):
         self.memory.append(state, action, reward, new_state, terminal)
 
-        if self.step % self.train_every == 0:
-            pass
+        if self.step < self.nb_warmup_steps:
+            return
+        if self.step % self.train_every != 0:
+            return
 
-    #     X = []
-    #     Y = []
-
-    #     for idx in range(batch_size):
-    #         current_state = curr_states[idx]
-    #         action        = actions[idx]
-    #         reward        = rewards[idx]
-    #         done          = terminals[idx]
-            
-    #         # (reward + dr * Q(s_t+1, a_t) )
-    #         if not done:
-    #             best_future_q = np.max(future_qs[idx])
-    #             new_q = reward + self.dr * best_future_q
-    #         else:
-    #             new_q = reward
-            
-    #         adjust_qs = curr_qs[idx]
-    #         adjust_qs[action] = new_q
-
-    #         X.append(current_state)
-    #         Y.append(adjust_qs)
-    #     self.model.fit(np.array(X), np.array(Y), batch_size=batch_size, verbose=0)
-
-    #     self.update_cntr += 1
-    #     if self.update_cntr >= self.update_rate:
-    #         self.update_cntr = 0
-    #         self.target_model.set_weights(self.model.get_weights())
-
-    # def save_model(self, path:str) -> None:
-    #     """Save trained weights and model architecture to file.
-
-    #     ### Params
-    #     1. path (str) - filepath
-    #     """
-    #     self.model.save(path)
-
-    # def load_model(self, path:str) -> None:
-    #     """Load trained model from file.
+        X = []
+        Y = []
         
-    #     ### Params
-    #     1. path (str) - filepath
-    #     """
-    #     self.model = models.load_model(path)
+        experiences = self.memory.sample(self.batch_size)
+
+        state0    = [None] * self.batch_size
+        action0   = [None] * self.batch_size
+        reward1   = [None] * self.batch_size
+        state1    = [None] * self.batch_size
+        terminal1 = [None] * self.batch_size
+
+        for idx, transition in enumerate(experiences):
+            state0[idx]     = transition.state0
+            action0[idx]    = transition.action
+            reward1[idx]    = transition.reward
+            state1[idx]     = transition.state1
+            terminal1[idx]  = transition.terminal1
+
+        # batch predict
+        current_qs = self.predict_on_batch(np.array(state0))
+        future_qs = self.predict_on_batch(np.array(state1))
+
+        for idx in range(self.batch_size):
+            # reward + dr * Q(state1, action0)
+
+            if not terminal1[idx]:
+                best_future_q = np.max(future_qs[idx])
+                new_q = reward + self.gamma * best_future_q
+            else:
+                new_q = reward
+            
+            adjust_qs = current_qs[idx]
+            adjust_qs[action0[idx]] = new_q
+
+            X.append(state0[idx])
+            Y.append(adjust_qs)
+        
+        X = np.array(X)
+        Y = np.array(Y)
+
+        # raise KeyboardInterrupt()
+        self.model.fit(X, Y, verbose=0)
+
+        self.update_cntr += 1
+        if self.update_cntr >= self.target_model_update:
+            self.update_cntr = 0
+            self.target_model.set_weights(self.model.get_weights())
     
+    def compile(self, optimizer, loss, metrics=[]):
+
+        # we never train the target model, so we pass random arguments
+        self.target_model = clone_model(self.model)
+        self.target_model.compile(optimizer='sgd', loss='mse')
+
+        self.model.compile(optimizer, loss, metrics)
+
+
+    def predict_on_observation(self, observation):
+        return self.target_model.predict(np.expand_dims(observation, axis=0))[0]
+
+    def predict_on_batch(self, observations):
+        return self.target_model.predict(observations)
+
+    def save_weights(self, filepath, overwrite=False):
+        self.model.save(filepath=filepath, overwrite=overwrite)
+
+    def load_weights(self, filepath):
+        self.model.load_weights(filepath)
+        self.target_model.set_weights(self.model.get_weights())

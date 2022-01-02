@@ -20,7 +20,7 @@ gym==0.21.0
 h5py==3.6.0
 idna==3.3
 imageio==2.13.3
-importlib-metadata==3.6.0
+importlib-metadata==4.4
 importlib-resources==5.4.0
 keras==2.7.0
 Keras-Preprocessing==1.1.2

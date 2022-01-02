@@ -18,7 +18,10 @@ class BaseCallback(Callback):
     """
     def set_env(self, env):
         """Set the environment for internal reference"""
-        self.env = env
+        pass
+
+    def set_model(self, model):
+        pass
 
     def on_episode_begin(self, episode, logs={}):
         """Called at beginning of each episode"""
@@ -44,7 +47,7 @@ class BaseCallback(Callback):
         """Called at end of each action"""
         pass
 
-class CallbackListHanlder(CallbackList):
+class CallbackListHandler(CallbackList):
     """Provides simple 'vectorized' method calls on a list of keras.callbacks.Callback objects
 
     Note: Each Callback object also inherits properties from keras.callbacks.Callback.
@@ -53,27 +56,28 @@ class CallbackListHanlder(CallbackList):
 
     def __init__(self, callbacks):
         self.callbacks = callbacks
+        self._supports_tf_logs = False
 
     def set_env(self, env):
         for callback in self.callbacks:
-            if callable(getattr(callable, 'set_env', None)):
+            if callable(getattr(callback, 'set_env', None)):
                 callback.set_env(env)
     
     def set_model(self, model):
         for callback in self.callbacks:
-            if callable(getattr(callable, 'set_model', None)):
+            if callable(getattr(callback, 'set_model', None)):
                 callback.set_model(model)
 
     def on_episode_begin(self, episode, logs={}):
         for callback in self.callbacks:
-            if callable(getattr(callable, 'on_episode_begin', None)):
+            if callable(getattr(callback, 'on_episode_begin', None)):
                 callback.on_episode_begin(episode, logs)
             else: # default to built-in-keras terminology
                 callback.on_epoch_begin(episode, logs=logs)
 
     def on_episode_end(self, episode, logs={}):
         for callback in self.callbacks:
-            if callable(getattr(callable, 'on_episode_end', None)):
+            if callable(getattr(callback, 'on_episode_end', None)):
                 callback.on_episode_end(episode, logs)
             else: # default to built-in-keras terminology
                 callback.on_epoch_end(episode, logs=logs)
@@ -87,20 +91,20 @@ class CallbackListHanlder(CallbackList):
 
     def on_step_end(self, step, logs={}):
         for callback in self.callbacks:
-            if callable(getattr(callable, 'on_step_end', None)):
+            if callable(getattr(callback, 'on_step_end', None)):
                 callback.on_step_end(step, logs)
             else: # default to built-in-keras terminology
                 callback.on_batch_end(step, logs)
 
     def on_action_begin(self, action, logs={}):
         for callback in self.callbacks:
-            if callable(getattr(callable, 'on_action_begin', None)):
-                callback.on_action_begin()
+            if callable(getattr(callback, 'on_action_begin', None)):
+                callback.on_action_begin(action, logs)
 
 
     def on_action_end(self, action, logs={}):
         for callback in self.callbacks:
-            if callable(getattr(callable, 'on_action_end', None)):
+            if callable(getattr(callback, 'on_action_end', None)):
                 callback.on_action_end(action, logs)
 
 class MetricsCallback(BaseCallback):
@@ -114,12 +118,16 @@ class MetricsCallback(BaseCallback):
         self.step           = 0
 
         self.do_free_resources = do_free_resources
+        self.train_start = 0
+
+    def set_model(self, model):
+        self.model = model
 
     def on_train_begin(self, logs=None):
         """Training values"""
         self.train_start = timeit.default_timer()
-        self.metric_names = self.model.metrics_names
-        print(f"Training for {self.params['nb_steps']} steps ...")
+        self.metrics_names = self.model.metrics_names
+        print(f"Training for {self.model.params['nb_steps']} steps ...")
 
     def on_train_end(self, logs=None):
         """Print training time"""
@@ -156,11 +164,11 @@ class MetricsCallback(BaseCallback):
                 metrics_variables += [name, value]          
         metrics_text = metrics_template.format(*metrics_variables)
 
-        nb_step_digits = str(int(np.ceil(np.log10(self.params['nb_steps']))) + 1)
+        nb_step_digits = str(int(np.ceil(np.log10(self.model.params['nb_steps']))) + 1)
         template = '{step: ' + nb_step_digits + 'd}/{nb_steps}: episode: {episode}, duration: {duration:.3f}s, episode steps: {episode_steps:3}, steps per second: {sps:3.0f}, episode reward: {episode_reward:6.3f}, mean reward: {reward_mean:6.3f} [{reward_min:6.3f}, {reward_max:6.3f}], mean action: {action_mean:.3f} [{action_min:.3f}, {action_max:.3f}],  {metrics}'
         variables = {
             'step': self.step,
-            'nb_steps': self.params['nb_steps'],
+            'nb_steps': self.model.params['nb_steps'],
             'episode': episode + 1,
             'duration': duration,
             'episode_steps': episode_steps,
@@ -197,6 +205,9 @@ class MetricsCallback(BaseCallback):
 
 
 class VisualizerCallback(BaseCallback):
+    def set_env(self, env):
+        self.env = env
+
     def on_action_end(self, action, logs={}):
         """Show Training"""
         self.env.render()

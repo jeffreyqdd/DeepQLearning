@@ -1,7 +1,7 @@
 ## pulled from https://github.com/keras-rl/keras-rl/blob/master/rl/core.py
 
 from tensorflow.python.util.tf_decorator import rewrap
-from core.callbacks import CallbackListHanlder
+from core.callbacks import CallbackListHandler
 from abc import ABC, abstractclassmethod, abstractproperty
 from keras.callbacks import History
 from core.processor import LazyProcessor
@@ -46,13 +46,17 @@ class BaseAgent(ABC):
 
         Returns a keras History obj
         """
-        
+        self.params = {
+            'nb_steps' : nb_steps,
+            'nb_max_episode_steps' : nb_max_episode_steps,
+            'action_repetition'    : action_repetition
+        }
         #########################################################################################
         ############# Initialize
         #########################################################################################
         history     = History()
         callbacks   += [history] # add keras history callback
-        callbacks   = CallbackListHanlder(callbacks)
+        callbacks   = CallbackListHandler(callbacks)
 
         callbacks.set_model(self)
         callbacks.set_env(env)
@@ -71,7 +75,7 @@ class BaseAgent(ABC):
         
         # allow keyboard interrupt to abort training process
         try:
-            while self.steps < nb_steps:
+            while self.step < nb_steps:
                 # reset environment if observation is None
                 if observation is None:
                     #########################################################################################
@@ -193,13 +197,35 @@ class BaseAgent(ABC):
 
         return history
 
+    def test(self,
+        env,
+        nb_episode,
+    ):
+        "quick insert"
+        
+        for _ in range(nb_episode):
+            observation = deepcopy(env.reset())
+            self.processor.process_observation(observation)
+            done = False
+
+            while not done:
+                action = self.forward(observation=observation)
+                action = self.processor.process_action(action)
+                new_observation, r, done, info = env.step(action)
+                env.render()
+                new_observation = deepcopy(new_observation)
+                new_observation, r, done, info = self.processor.process_step(new_observation, r, done, info)
+                observation = new_observation
+
+
 
 
     def reset_states(self):
         """Resets all internally kept states after an episode is completed.
         """
         pass
-
+    
+    @abstractclassmethod
     def forward(self, observation):
         """Takes the an observation from the environment and returns the action to be taken next.
         If the policy is implemented by a neural network, this corresponds to a forward (inference) pass.
@@ -212,19 +238,11 @@ class BaseAgent(ABC):
         """
         raise NotImplementedError()
 
+    @abstractclassmethod
     def backward(self, state, action, reward, new_state, terminal):
-
         raise NotImplementedError()
 
-    def compile(self, optimizer, metrics=[]):
-        """Compiles an agent and the underlaying models to be used for training and testing.
-
-        # Arguments
-            optimizer (`keras.optimizers.Optimizer` instance): The optimizer to be used during training.
-            metrics (list of functions `lambda y_true, y_pred: metric`): The metrics to run during training.
-        """
-        raise NotImplementedError()
-
+    @abstractclassmethod
     def load_weights(self, filepath):
         """Loads the weights of an agent from an HDF5 file.
 
@@ -233,6 +251,7 @@ class BaseAgent(ABC):
         """
         raise NotImplementedError()
 
+    @abstractclassmethod
     def save_weights(self, filepath, overwrite=False):
         """Saves the weights of an agent as an HDF5 file.
 
@@ -240,6 +259,10 @@ class BaseAgent(ABC):
             filepath (str): The path to where the weights should be saved.
             overwrite (boolean): If `False` and `filepath` already exists, raises an error.
         """
+        raise NotImplementedError()
+
+    @abstractclassmethod
+    def compile(self, optimizer, loss, metrics=[]):
         raise NotImplementedError()
 
     @property
